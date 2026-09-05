@@ -26,7 +26,7 @@ function createDoubleEmbed(result) {
                 inline: true,
             },
             {
-                name: won ? "Payout" : "Payout",
+                name: "Payout",
                 value: won
                     ? `🪙 ${formatNumber(result.payout)}`
                     : "🪙 0",
@@ -47,7 +47,6 @@ function createDoubleEmbed(result) {
 
 module.exports = {
     name: "double",
-    aliases: ["double"],
     description: "Double your wager or lose it.",
 
     options: [
