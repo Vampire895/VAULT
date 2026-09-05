@@ -364,6 +364,7 @@ async function handleButton(interaction) {
 
 module.exports = {
     name: "blackjack",
+    aliases: ["bj"],
     description: "Play Blackjack against the dealer.",
 
     options: [

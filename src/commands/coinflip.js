@@ -55,6 +55,7 @@ function createCoinflipEmbed(result) {
 
 module.exports = {
     name: "coinflip",
+    aliases: ["cf"],
     description: "Call heads or tails and flip the coin.",
 
     options: [

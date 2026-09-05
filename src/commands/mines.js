@@ -652,7 +652,7 @@ async function handleButton(
 
 module.exports = {
     name: "mines",
-
+    aliases: ["m"],
     description:
         "Play Mines.",
 

@@ -47,6 +47,7 @@ function createDoubleEmbed(result) {
 
 module.exports = {
     name: "double",
+    aliases: ["double"],
     description: "Double your wager or lose it.",
 
     options: [

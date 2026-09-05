@@ -46,6 +46,7 @@ function createSpinEmbed(result) {
 
 module.exports = {
     name: "spin",
+    aliases: ["s"],
     description: "Spin the Classic slot machine.",
 
     options: [
