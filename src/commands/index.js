@@ -15,6 +15,7 @@ const leaderboardCommand = require("./leaderboard");
 const rankCommand = require("./rank");
 const jackpotCommand = require("./jackpot");
 const startCommand = require("./start");
+const dailyCommand = require("./daily");
 const helpCommand = require("./help");
 const embedCommand = require("./embed");
 
@@ -34,10 +35,9 @@ function loadCommands() {
     registerCommand(rankCommand);
     registerCommand(jackpotCommand);
     registerCommand(startCommand);
+    registerCommand(dailyCommand);
     registerCommand(helpCommand);
     registerCommand(embedCommand);
 }
 
-module.exports = {
-    loadCommands,
-};
+module.exports = { loadCommands };
