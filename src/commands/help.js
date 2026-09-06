@@ -7,16 +7,14 @@ module.exports = {
 
     async execute(interaction) {
         const commands = getCommands();
-
         const commandNames = [...commands.keys()];
 
         const embed = createEmbed({
             title: "🎰 Fortune Commands",
             description: commandNames.join(", "),
+            footer: "Use /daily every 24 hours to claim your daily reward.",
         });
 
-        await interaction.reply({
-            embeds: [embed],
-        });
+        await interaction.reply({ embeds: [embed] });
     },
 };
