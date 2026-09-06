@@ -2,8 +2,17 @@ const {
     ApplicationCommandOptionType,
 } = require("discord.js");
 
-const coinflipSettlementService = require("../services/coinflipSettlementService");
-const configurationService = require("../services/configurationService");
+const coinflipSettlementService =
+    require("../services/coinflipSettlementService");
+
+const configurationService =
+    require("../services/configurationService");
+
+const { createEmbed } =
+    require("../ui/embedBuilder");
+
+const { animateCoinflip } =
+    require("../ui/gameAnimation");
 
 function formatNumber(value) {
     return value.toLocaleString("en-US");
@@ -20,37 +29,31 @@ function createCoinflipEmbed(result) {
             ? "Heads"
             : "Tails";
 
-    return {
+    return createEmbed({
         title: "🪙  VAULT • COINFLIP",
-
         description:
             `## ${resultDisplay}\n\n` +
             `You called **${choiceDisplay}**.`,
-
-        fields: [
-            {
-                name: "Wager",
-                value: `🪙 ${formatNumber(result.bet)}`,
-                inline: true,
-            },
-            {
-                name: result.won ? "Win" : "Payout",
-                value: result.won
-                    ? `🪙 ${formatNumber(result.payout)}`
-                    : "🪙 0",
-                inline: true,
-            },
-            {
-                name: "Balance",
-                value: `🪙 ${formatNumber(result.balanceAfter)}`,
-                inline: true,
-            },
-        ],
-
-        footer: {
-            text: "VAULT • CoinFlip",
+        footer: "VAULT • CoinFlip",
+    }).addFields(
+        {
+            name: "Wager",
+            value: `🪙 ${formatNumber(result.bet)}`,
+            inline: true,
         },
-    };
+        {
+            name: result.won ? "Win" : "Payout",
+            value: result.won
+                ? `🪙 ${formatNumber(result.payout)}`
+                : "🪙 0",
+            inline: true,
+        },
+        {
+            name: "Balance",
+            value: `🪙 ${formatNumber(result.balanceAfter)}`,
+            inline: true,
+        }
+    );
 }
 
 module.exports = {
@@ -115,16 +118,35 @@ module.exports = {
                     choice
                 );
 
-            await interaction.reply({
+            await animateCoinflip(
+                interaction,
+                result,
+                createEmbed
+            );
+
+            const message =
+                await interaction.fetchReply();
+
+            await message.edit({
                 embeds: [
                     createCoinflipEmbed(result),
                 ],
             });
         } catch (error) {
-            await interaction.reply({
-                content: `❌ ${error.message}`,
-                flags: 64,
-            });
+            if (
+                interaction.replied ||
+                interaction.deferred
+            ) {
+                await interaction.followUp({
+                    content: `❌ ${error.message}`,
+                    flags: 64,
+                });
+            } else {
+                await interaction.reply({
+                    content: `❌ ${error.message}`,
+                    flags: 64,
+                });
+            }
         }
     },
 };

@@ -2,6 +2,8 @@ const { ApplicationCommandOptionType } = require("discord.js");
 
 const economyService = require("../services/economyService");
 const { formatTransfer } = require("../ui/economyFormatter");
+const { createEmbed } = require("../ui/embedBuilder");
+const { animateGive } = require("../ui/gameAnimation");
 const AppError = require("../errors/AppError");
 const errorMessages = require("../errors/errorMessages");
 
@@ -36,20 +38,45 @@ module.exports = {
             );
         }
 
-        economyService.transfer(
-    interaction.user.id,
-    recipient.id,
-    amount
-);
+        try {
+            economyService.transfer(
+                interaction.user.id,
+                recipient.id,
+                amount
+            );
 
-        const embed = formatTransfer({
-            sender: interaction.user,
-            recipient,
-            amount,
-        });
+            const message = await animateGive(
+                interaction,
+                {
+                    sender: interaction.user,
+                    recipient,
+                    amount,
+                },
+                createEmbed
+            );
 
-        await interaction.reply({
-            embeds: [embed],
-        });
+            await message.edit({
+                embeds: [
+                    formatTransfer({
+                        sender: interaction.user,
+                        recipient,
+                        amount,
+                    }),
+                ],
+            });
+        } catch (error) {
+            if (interaction.replied || interaction.deferred) {
+                await interaction.editReply({
+                    content: `❌ ${error.message}`,
+                    embeds: [],
+                    components: [],
+                });
+            } else {
+                await interaction.reply({
+                    content: `❌ ${error.message}`,
+                    flags: 64,
+                });
+            }
+        }
     },
 };

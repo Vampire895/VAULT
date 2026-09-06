@@ -2,8 +2,17 @@ const {
     ApplicationCommandOptionType,
 } = require("discord.js");
 
-const slotSettlementService = require("../services/slotSettlementService");
-const configurationService = require("../services/configurationService");
+const slotSettlementService =
+    require("../services/slotSettlementService");
+
+const configurationService =
+    require("../services/configurationService");
+
+const { createEmbed } =
+    require("../ui/embedBuilder");
+
+const { animateSpin } =
+    require("../ui/gameAnimation");
 
 function formatNumber(value) {
     return value.toLocaleString("en-US");
@@ -16,32 +25,29 @@ function createSpinEmbed(result) {
 
     const isWin = result.payout > 0;
 
-    return {
+    return createEmbed({
         title: "🎰  VAULT • CLASSIC",
         description:
             `## ${symbols}\n\n` +
             `**${result.outcome.tier.toUpperCase()}** · ${result.outcome.multiplier}×`,
-        fields: [
-            {
-                name: "Wager",
-                value: `🪙 ${formatNumber(result.bet)}`,
-                inline: true,
-            },
-            {
-                name: isWin ? "Win" : "Payout",
-                value: `🪙 ${formatNumber(result.payout)}`,
-                inline: true,
-            },
-            {
-                name: "Balance",
-                value: `🪙 ${formatNumber(result.balanceAfter)}`,
-                inline: true,
-            },
-        ],
-        footer: {
-            text: "VAULT • Classic",
+        footer: "VAULT • Classic",
+    }).addFields(
+        {
+            name: "Wager",
+            value: `🪙 ${formatNumber(result.bet)}`,
+            inline: true,
         },
-    };
+        {
+            name: isWin ? "Win" : "Payout",
+            value: `🪙 ${formatNumber(result.payout)}`,
+            inline: true,
+        },
+        {
+            name: "Balance",
+            value: `🪙 ${formatNumber(result.balanceAfter)}`,
+            inline: true,
+        }
+    );
 }
 
 module.exports = {
@@ -87,16 +93,35 @@ module.exports = {
                     bet
                 );
 
-            await interaction.reply({
+            await animateSpin(
+                interaction,
+                result,
+                createEmbed
+            );
+
+            const message =
+                await interaction.fetchReply();
+
+            await message.edit({
                 embeds: [
                     createSpinEmbed(result),
                 ],
             });
         } catch (error) {
-            await interaction.reply({
-                content: `❌ ${error.message}`,
-                flags: 64,
-            });
+            if (
+                interaction.replied ||
+                interaction.deferred
+            ) {
+                await interaction.followUp({
+                    content: `❌ ${error.message}`,
+                    flags: 64,
+                });
+            } else {
+                await interaction.reply({
+                    content: `❌ ${error.message}`,
+                    flags: 64,
+                });
+            }
         }
     },
 };

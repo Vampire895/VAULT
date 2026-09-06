@@ -1,9 +1,9 @@
-const {
-    ApplicationCommandOptionType,
-} = require("discord.js");
+const { ApplicationCommandOptionType } = require("discord.js");
 
 const doubleOrNothingService = require("../services/doubleOrNothingService");
 const configurationService = require("../services/configurationService");
+const { createEmbed } = require("../ui/embedBuilder");
+const { animateDouble } = require("../ui/gameAnimation");
 
 function formatNumber(value) {
     return value.toLocaleString("en-US");
@@ -14,11 +14,9 @@ function createDoubleEmbed(result) {
 
     return {
         title: "🎲  VAULT • DOUBLE OR NOTHING",
-
         description: won
             ? "## 🎉 DOUBLE!\n\nYou doubled your wager."
             : "## 💥 LOST!\n\nBetter luck next time.",
-
         fields: [
             {
                 name: "Wager",
@@ -38,7 +36,6 @@ function createDoubleEmbed(result) {
                 inline: true,
             },
         ],
-
         footer: {
             text: "VAULT • Double or Nothing",
         },
@@ -60,42 +57,44 @@ module.exports = {
     ],
 
     async execute(interaction) {
-        const bet =
-            interaction.options.getInteger("bet");
+        const bet = interaction.options.getInteger("bet");
+        const minimumBet = configurationService.getMinimumBet();
 
-        const minimumBet =
-            configurationService.getMinimumBet();
-
-        if (
-            !Number.isSafeInteger(bet) ||
-            bet < minimumBet
-        ) {
+        if (!Number.isSafeInteger(bet) || bet < minimumBet) {
             await interaction.reply({
-                content:
-                    `❌ Minimum bet is ${formatNumber(minimumBet)} coins.`,
+                content: `❌ Minimum bet is ${formatNumber(minimumBet)} coins.`,
                 flags: 64,
             });
-
             return;
         }
 
         try {
-            const result =
-                doubleOrNothingService.play(
-                    interaction.user.id,
-                    bet
-                );
+            const result = doubleOrNothingService.play(
+                interaction.user.id,
+                bet
+            );
 
-            await interaction.reply({
-                embeds: [
-                    createDoubleEmbed(result),
-                ],
+            const message = await animateDouble(
+                interaction,
+                result,
+                createEmbed
+            );
+
+            await message.edit({
+                embeds: [createDoubleEmbed(result)],
             });
         } catch (error) {
-            await interaction.reply({
-                content: `❌ ${error.message}`,
-                flags: 64,
-            });
+            if (interaction.replied || interaction.deferred) {
+                await interaction.editReply({
+                    content: `❌ ${error.message}`,
+                    embeds: [],
+                });
+            } else {
+                await interaction.reply({
+                    content: `❌ ${error.message}`,
+                    flags: 64,
+                });
+            }
         }
     },
 };

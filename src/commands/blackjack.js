@@ -9,9 +9,24 @@ const {
 const blackjackGameService =
     require("../services/blackjackGameService");
 
+const blackjackSettlementService =
+    require("../services/blackjackSettlementService");
+
+const configurationService =
+    require("../services/configurationService");
+
+const { createEmbed } =
+    require("../ui/embedBuilder");
+
+const {
+    animateBlackjackStart,
+    animateBlackjackHit,
+    animateBlackjackResolution,
+} = require("../ui/gameAnimation");
+
 function formatHand(hand) {
     return hand
-        .map(card => `${card.rank}${card.suit}`)
+        .map((card) => `${card.rank}${card.suit}`)
         .join("  ");
 }
 
@@ -30,10 +45,10 @@ function createGameEmbed(game) {
         .setTitle("🃏 Blackjack")
         .setDescription(
             [
-                `**Your Hand**`,
+                "**Your Hand**",
                 `${formatHand(game.playerHand)}  **(${playerValue})**`,
                 "",
-                `**Dealer**`,
+                "**Dealer**",
                 `${formatHand(dealerVisibleHand)}`,
                 "",
                 `💰 **Bet:** ${game.bet.toLocaleString()}`,
@@ -104,46 +119,36 @@ function createFinalEmbed(result) {
     const lines = [];
 
     if (playerHand.length > 0) {
-        const playerValue =
-            result.player.value;
-
         lines.push(
-            `**Your Hand**`,
-            `${formatHand(playerHand)}  **(${playerValue})**`
+            "**Your Hand**",
+            `${formatHand(playerHand)}  **(${result.player.value})**`
         );
     }
 
     if (dealerHand.length > 0) {
-        const dealerValue =
-            result.dealer.value;
-
         lines.push(
             "",
-            `**Dealer**`,
-            `${formatHand(dealerHand)}  **(${dealerValue})**`
+            "**Dealer**",
+            `${formatHand(dealerHand)}  **(${result.dealer.value})**`
         );
     }
 
     lines.push(
         "",
-        `💰 **Bet:** ${result.bet.toLocaleString()}`
+        `💰 **Bet:** ${result.bet.toLocaleString()}`,
+        result.doubled ? "⚡ **Doubled Down**" : "",
+        `💵 **Payout:** ${
+            result.payout > 0
+                ? result.payout.toLocaleString()
+                : "0"
+        }`
     );
-
-    if (result.doubled) {
-        lines.push("⚡ **Doubled Down**");
-    }
-
-    if (result.payout > 0) {
-        lines.push(
-            `💵 **Payout:** ${result.payout.toLocaleString()}`
-        );
-    } else {
-        lines.push("💵 **Payout:** 0");
-    }
 
     return new EmbedBuilder()
         .setTitle(title)
-        .setDescription(lines.join("\n"));
+        .setDescription(
+            lines.filter(Boolean).join("\n")
+        );
 }
 
 function getDisabledButtons(userId) {
@@ -185,69 +190,78 @@ async function execute(interaction) {
     const userId =
         interaction.user.id;
 
-    const result =
-        blackjackGameService.start(
-            userId,
-            bet
-        );
-
-    /*
-     * Natural Blackjack / Dealer Blackjack
-     * resolves immediately and does not create
-     * an active session.
-     */
-    if (result.resolution.status !== "player_turn") {
-        /*
-         * Settlement belongs to the service layer.
-         *
-         * The round service has already deducted
-         * the original bet, so settle the result here.
-         */
-        const finalResult =
-            require("../services/blackjackGameService");
-
-        const settlement =
-            require("../services/blackjackSettlementService");
-
-        const settled =
-            settlement.settle(
+    try {
+        const result =
+            blackjackGameService.start(
                 userId,
-                {
-                    ...result.resolution,
-                    bet: result.bet,
-                }
+                bet
             );
 
-        await interaction.reply({
-            embeds: [
-                createFinalEmbed({
-                    ...result.resolution,
-                    bet: result.bet,
-                    payout: settled.payout,
-                    doubled: false,
-                }),
-            ],
-        });
+        /*
+         * Natural Blackjack / Dealer Blackjack
+         * resolves immediately.
+         */
+        if (
+            result.resolution.status !==
+            "player_turn"
+        ) {
+            const settled =
+                blackjackSettlementService.settle(
+                    userId,
+                    {
+                        ...result.resolution,
+                        bet: result.bet,
+                    }
+                );
 
-        return;
+            await interaction.reply({
+                embeds: [
+                    createFinalEmbed({
+                        ...result.resolution,
+                        bet: result.bet,
+                        payout: settled.payout,
+                        doubled: false,
+                    }),
+                ],
+            });
+
+            return;
+        }
+
+        const game =
+            blackjackGameService.getGame(userId);
+
+        await animateBlackjackStart(
+            interaction,
+            game,
+            createEmbed,
+            createButtons(userId)
+        );
+    } catch (error) {
+        if (
+            interaction.replied ||
+            interaction.deferred
+        ) {
+            await interaction.editReply({
+                content: `❌ ${error.message}`,
+                embeds: [],
+                components: [],
+            });
+        } else {
+            await interaction.reply({
+                content: `❌ ${error.message}`,
+                flags: 64,
+            });
+        }
     }
-
-    const game =
-        blackjackGameService.getGame(userId);
-
-    await interaction.reply({
-        embeds: [
-            createGameEmbed(game),
-        ],
-        components: [
-            createButtons(userId),
-        ],
-    });
 }
 
 async function handleButton(interaction) {
-    const [prefix, action, ownerId] =
-        interaction.customId.split("_");
+    const [
+        prefix,
+        action,
+        ownerId,
+    ] = interaction.customId.split("_");
 
     if (prefix !== "bj") {
         return false;
@@ -263,9 +277,9 @@ async function handleButton(interaction) {
         return true;
     }
 
-    let result;
-
     try {
+        let result;
+
         switch (action) {
             case "hit":
                 result =
@@ -302,7 +316,7 @@ async function handleButton(interaction) {
                             )
                             .setDescription(
                                 `Your active Blackjack game was cancelled.\n\n` +
-                                `💰 Original bet: **${result.bet.toLocaleString()}**`
+                                `💰 **Original bet:** ${result.bet.toLocaleString()}`
                             ),
                     ],
                     components: [
@@ -317,6 +331,60 @@ async function handleButton(interaction) {
             default:
                 return false;
         }
+
+        /*
+         * Player still has control.
+         */
+        if (
+            result.status ===
+            "player_turn"
+        ) {
+            const game =
+                blackjackGameService.getGame(
+                    ownerId
+                );
+
+            if (action === "hit") {
+                await animateBlackjackHit(
+                    interaction,
+                    game,
+                    createEmbed,
+                    createButtons(ownerId)
+                );
+            } else {
+                await interaction.update({
+                    embeds: [
+                        createGameEmbed(game),
+                    ],
+                    components: [
+                        createButtons(ownerId),
+                    ],
+                });
+            }
+
+            return true;
+        }
+
+        /*
+         * Round resolved.
+         */
+        await animateBlackjackResolution(
+            interaction,
+            result,
+            createEmbed,
+            getDisabledButtons(ownerId)
+        );
+
+        await interaction.editReply({
+            embeds: [
+                createFinalEmbed(result),
+            ],
+            components: [
+                getDisabledButtons(ownerId),
+            ],
+        });
+
+        return true;
     } catch (error) {
         await interaction.reply({
             content: `❌ ${error.message}`,
@@ -325,41 +393,6 @@ async function handleButton(interaction) {
 
         return true;
     }
-
-    /*
-     * Player is still choosing.
-     */
-    if (result.status === "player_turn") {
-        const game =
-            blackjackGameService.getGame(
-                ownerId
-            );
-
-        await interaction.update({
-            embeds: [
-                createGameEmbed(game),
-            ],
-            components: [
-                createButtons(ownerId),
-            ],
-        });
-
-        return true;
-    }
-
-    /*
-     * Round has resolved.
-     */
-    await interaction.update({
-        embeds: [
-            createFinalEmbed(result),
-        ],
-        components: [
-            getDisabledButtons(ownerId),
-        ],
-    });
-
-    return true;
 }
 
 module.exports = {
