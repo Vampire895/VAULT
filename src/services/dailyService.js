@@ -2,10 +2,7 @@ const economyService = require("./economyService");
 
 const BASE_REWARD = 500;
 const INCREASE_PER_CLAIM = 50;
-
-function getToday() {
-    return new Date().toISOString().slice(0, 10);
-}
+const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 function getReward(claimCount) {
     if (!Number.isSafeInteger(claimCount) || claimCount < 0) throw new Error("Invalid Daily claim count.");
@@ -16,22 +13,30 @@ function getReward(claimCount) {
 
 function claim(userId) {
     const account = economyService.getAccount(userId);
-    const claimDate = getToday();
+    const now = Date.now();
+    const lastClaimAt = account.last_daily_claim ? new Date(account.last_daily_claim).getTime() : null;
 
-    if (account.last_daily_claim === claimDate) {
-        return { claimed: false, claimDate, claimCount: account.daily_claim_count, reward: 0, balance: account.balance };
+    if (lastClaimAt !== null && !Number.isNaN(lastClaimAt) && now - lastClaimAt < COOLDOWN_MS) {
+        return {
+            claimed: false,
+            reward: 0,
+            claimCount: account.daily_claim_count,
+            balance: account.balance,
+            nextClaimAt: new Date(lastClaimAt + COOLDOWN_MS),
+        };
     }
 
     const reward = getReward(account.daily_claim_count);
-    const result = economyService.claimDaily(userId, reward, claimDate);
+    const claimAt = new Date(now).toISOString();
+    const result = economyService.claimDaily(userId, reward, claimAt);
 
     return {
         claimed: true,
-        claimDate,
-        claimCount: result.claimCount,
         reward: result.reward,
+        claimCount: result.claimCount,
         balance: result.balanceAfter,
+        nextClaimAt: new Date(now + COOLDOWN_MS),
     };
 }
 
-module.exports = { BASE_REWARD, INCREASE_PER_CLAIM, getToday, getReward, claim };
+module.exports = { BASE_REWARD, INCREASE_PER_CLAIM, COOLDOWN_MS, getReward, claim };
